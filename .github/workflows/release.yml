@@ -1,0 +1,76 @@
+name: Release
+
+# 推送 v 开头的 tag(如 v0.1.0)时触发构建发布
+on:
+  push:
+    tags:
+      - 'v*'
+  # 支持在 GitHub 页面手动触发
+  workflow_dispatch:
+
+permissions:
+  contents: write  # 允许创建 Release 并上传产物
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'    # Apple Silicon (M 系列)
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'    # Intel
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'    # Linux
+            args: ''
+          - platform: 'windows-latest'  # Windows
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # macOS 需要额外安装目标平台工具链
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      # Linux 需要安装系统依赖
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # tag 推送时用 tag 名;手动触发时生成测试 tag(如 v-test-1234567890)
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('v-test-{0}', github.run_number) }}
+          releaseName: 'hello-tauri v__VERSION__'
+          releaseBody: '查看下方资产列表下载对应平台的安装包。'
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
