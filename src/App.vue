@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
+import { updateState, downloadAndInstallUpdate } from "./updater";
+
+const appVersion = ref("");
+onMounted(async () => {
+  appVersion.value = (await getVersion().catch(() => "")) || "";
+});
 
 const greetMsg = ref("");
 const name = ref("");
@@ -13,7 +20,23 @@ async function greet() {
 
 <template>
   <main class="container">
+    <p v-if="appVersion" class="version">v{{ appVersion }}</p>
     <h1>Welcome to Tauri + Vue</h1>
+
+    <div v-if="updateState.phase === 'available'" class="update-banner">
+      <p>发现新版本 {{ updateState.version }}！</p>
+      <p v-if="updateState.notes" class="update-notes">{{ updateState.notes }}</p>
+      <button type="button" @click="downloadAndInstallUpdate">立即下载并安装</button>
+    </div>
+
+    <div v-else-if="updateState.phase === 'downloading'" class="update-banner">
+      <p>正在下载 {{ updateState.version }}… {{ updateState.progress ?? 0 }}%</p>
+      <progress :value="updateState.progress ?? 0" max="100"></progress>
+    </div>
+
+    <div v-else-if="updateState.phase === 'restarting'" class="update-banner">
+      <p>更新已安装，正在重启…</p>
+    </div>
 
     <div class="row">
       <a href="https://vite.dev" target="_blank">
@@ -37,6 +60,31 @@ async function greet() {
 </template>
 
 <style scoped>
+.version {
+  margin: 0;
+  opacity: 0.6;
+  font-size: 0.9em;
+}
+
+.update-banner {
+  margin: 0 auto 1em;
+  padding: 1em 1.5em;
+  border: 1px solid #396cd8;
+  border-radius: 8px;
+  max-width: 480px;
+}
+
+.update-notes {
+  opacity: 0.7;
+  font-size: 0.9em;
+  white-space: pre-wrap;
+}
+
+.update-banner progress {
+  width: 100%;
+  height: 8px;
+}
+
 .logo.vite:hover {
   filter: drop-shadow(0 0 2em #747bff);
 }

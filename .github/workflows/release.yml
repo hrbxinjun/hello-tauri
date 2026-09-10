@@ -66,6 +66,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 更新包签名私钥(仓库 Secrets 中配置)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           # tag 推送时用 tag 名;手动触发时生成测试 tag(如 v-test-1234567890)
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('v-test-{0}', github.run_number) }}
@@ -73,4 +76,6 @@ jobs:
           releaseBody: '查看下方资产列表下载对应平台的安装包。'
           releaseDraft: false
           prerelease: false
+          # Windows 同时产出 NSIS(.exe) 和 MSI,让 latest.json 指向 NSIS 安装包
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
